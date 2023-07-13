@@ -137,6 +137,7 @@ def try_connect(
     timeout_start = time.time()
     while time.time() < timeout_start + ssh_timeout:
         try:
+            # pkey = paramiko.RSAKey.from_private_key_file(connection_info.private_key_file)
             paramiko_client.connect(
                 hostname=connection_info.address,
                 port=connection_info.port,
@@ -145,6 +146,8 @@ def try_connect(
                 key_filename=connection_info.private_key_file,
                 banner_timeout=10,
                 sock=sock,
+                look_for_keys=False,
+                # pkey=pkey,
             )
 
             stdin, stdout, _ = paramiko_client.exec_command("cmd\n")
