@@ -208,6 +208,7 @@ class OperatingSystem:
     @classmethod
     def _get_detect_string(cls, node: Any) -> Iterable[str]:
         typed_node: Node = node
+        cmd_result = typed_node.execute(cmd="help", no_error_log=True)
         cmd_result = typed_node.execute(cmd="lsb_release -d", no_error_log=True)
         yield get_matched_str(cmd_result.stdout, cls.__lsb_release_pattern)
 

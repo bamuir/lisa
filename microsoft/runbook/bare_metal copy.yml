@@ -1,0 +1,62 @@
+platform:
+  type: bare_metal
+  # global settings like passwords
+  build:
+    type: // one of smb, ado, ftp, http, https, local. If it's ado, refer to fields you provided.
+    name: // it's a general name, so one build_source and serve multiple installations.
+    organization:
+    project:
+    build_id:
+    pat:
+    artifact_name:
+    source:
+      - type:
+        name:
+        share:
+        username:
+        password:
+    files:
+      - source: grub.cfg
+      - source: grubx64.efi
+      - source: Boot\x64\bootx64.efi
+        destination: Boot\x64\boot.efi
+      - source: Boot\x64\*.efi
+        destination: boot\
+    destination:
+      - type: smb
+        name:
+        share: \\ip\reminst
+        username:
+        password:
+  cluster:
+    - type:
+      power:
+        - type:
+      serial:
+        - type:
+      file:
+        - type:
+          path:
+      client:
+        - address:
+    - type: rack_manager
+      address: ...
+      username: ...
+      password: ...
+      ip_reader:
+        - type:
+          address:
+      client:
+        - management_port: 3
+    - type: idrac
+      address: ...
+      username: ...
+      password: ...
+      boot_order: VCD-DVD
+      file: http://link.iso
+      client:
+        - name:
+          ip: ip
+          port:
+          username:
+          ssh_key:

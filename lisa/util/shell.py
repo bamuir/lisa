@@ -74,6 +74,42 @@ def wait_tcp_port_ready(
     return is_ready, result
 
 
+class UnsupportedArgumentError(Exception):
+    pass
+
+
+class BMCType(object):
+    """
+    Windows command generator
+    Support get pid, set envs, and cwd
+    Doesn't support kill, it needs overwrite spur.SshShell
+    """
+
+    supports_which = False
+
+    def generate_run_command(
+        self, command_args, store_pid, cwd=None, update_env={}, new_process_group=False
+    ):
+        if store_pid:
+            raise self._unsupported_argument_error("store_pid")
+
+        if cwd is not None:
+            raise self._unsupported_argument_error("cwd")
+
+        if update_env:
+            raise self._unsupported_argument_error("update_env")
+
+        if new_process_group:
+            raise self._unsupported_argument_error("new_process_group")
+
+        return " ".join(command_args)
+
+    def _unsupported_argument_error(self, name):
+        return UnsupportedArgumentError(
+            "'{0}' is not supported when using a minimal shell".format(name)
+        )
+
+
 class WindowsShellType(object):
     """
     Windows command generator
@@ -147,21 +183,21 @@ def try_connect(
                 sock=sock,
             )
 
-            stdin, stdout, _ = paramiko_client.exec_command("cmd\n")
+            stdin, stdout, _ = paramiko_client.exec_command("help\n")
             # Flush commands and prevent more writes
-            stdin.flush()
+            # stdin.flush()
 
-            # Give it some time to process the command, otherwise reads on
-            # stdout on calling contexts have been seen having empty strings
-            # from stdout, on Windows. There is a certain 3s penalty on Linux
-            # systems, as it's never ready for that (nonexisting) command, but
-            # that should only happen once per node (not per command)
-            tries = 3
-            while not stdout.channel.recv_ready() and tries:
-                sleep(1)
-                tries -= 1
+            # # Give it some time to process the command, otherwise reads on
+            # # stdout on calling contexts have been seen having empty strings
+            # # from stdout, on Windows. There is a certain 3s penalty on Linux
+            # # systems, as it's never ready for that (nonexisting) command, but
+            # # that should only happen once per node (not per command)
+            # tries = 3
+            # while not stdout.channel.recv_ready() and tries:
+            #     sleep(1)
+            #     tries -= 1
 
-            stdin.channel.shutdown_write()
+            # stdin.channel.shutdown_write()
             paramiko_client.close()
 
             return stdout
@@ -236,7 +272,8 @@ class SshShell(InitializableMixin):
 
         # Some windows doesn't end the text stream, so read first line only.
         # it's  enough to detect os.
-        stdout_content = stdout.readline()
+        stdout_content = stdout.read().decode()
+        # stdout.readline()
         stdout.close()
 
         if stdout_content and "Windows" in stdout_content:
@@ -244,7 +281,7 @@ class SshShell(InitializableMixin):
             shell_type = WindowsShellType()
         else:
             self.is_posix = True
-            shell_type = spur.ssh.ShellTypes.sh
+            shell_type = BMCType()
 
         sock = self._establish_jump_boxes(
             address=self.connection_info.address,
@@ -305,7 +342,11 @@ class SshShell(InitializableMixin):
 
         while True:
             try:
-                if self._inner_shell._spur._shell_type == spur.ssh.ShellTypes.minimal:
+                store_pid = False
+                if (
+                    self._inner_shell._spur._shell_type == spur.ssh.ShellTypes.minimal
+                    or self._inner_shell._spur._shell_type == BMCType
+                ):
                     # minimal shell type doesn't support store_pid
                     store_pid = False
                 process: spur.ssh.SshProcess = _spawn_ssh_process(

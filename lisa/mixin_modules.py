@@ -17,6 +17,9 @@ import lisa.notifiers.junit  # noqa: F401
 import lisa.notifiers.text_result  # noqa: F401
 import lisa.runners.lisa_runner  # noqa: F401
 import lisa.sut_orchestrator.ready  # noqa: F401
+import lisa.sut_orchestrator.baremetal.build.adosource  # noqa: F401
+import lisa.sut_orchestrator.baremetal.build.smbbuild  # noqa: F401
+import lisa.sut_orchestrator.baremetal.cluster.rackmanager  # noqa: F401
 
 try:
     import lisa.runners.legacy_runner  # noqa: F401
@@ -29,6 +32,12 @@ try:
     import lisa.sut_orchestrator.azure.transformers  # noqa: F401
 except ModuleNotFoundError as e:
     print(f"azure package is not installed. [{e}]")
+
+# Azure modules
+try:
+    import lisa.sut_orchestrator.baremetal.platform_  # noqa: F401q
+except ModuleNotFoundError as e:
+    print(f"baremetal package is not installed. [{e}]")
 
 # Aws modules
 try:

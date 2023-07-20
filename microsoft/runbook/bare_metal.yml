@@ -1,0 +1,57 @@
+name: $(test_name)
+test_project: $(test_project)
+test_pass: $(test_pass)
+tags:
+  - $(test_tag)
+extension:
+  # - ../extensions
+  - ../testsuites/
+variable:
+  - name: test_tag
+    value:
+  - name: test_name
+    value:
+  - name: test_project
+    value:
+  - name: test_pass
+    value:
+  - file: C:\Code\internal\lsg-lisa\.vscode\variable_baremetal.yml
+platform:
+  - type: baremetal
+    baremetal:
+      build:
+        source:
+          type: ado
+          name: test
+          organization_url: test
+          project: test
+          build_id: test
+          pat: $(pat)
+          artifact_name: test
+      cluster:
+        - type: rackmanager
+          address: test
+          username: root
+          password: $(rackmanagerpwd)
+          build:
+            type: smb
+            name: test
+            share: reminst
+            username: Administrator
+            password: $(sharepwd)
+            server_name: WIN-VSQ02UEBIG0
+            files:
+              # - source: grub.cfg
+              # - source: grubx64.efi
+              # - source: Boot\x64\bootx64.efi
+              #   destination: Boot\x64\boot.efi
+              - source: Boot\.*efi
+                destination: boot\
+          # ip_reader:
+          #   - type:
+          #     address:
+          # client:
+          #   - management_port: 3
+testcase:
+  - criteria:
+      name: smoke_test
