@@ -22,37 +22,9 @@ from .sysctl import Sysctl
 if TYPE_CHECKING:
     from lisa.testsuite import TestResult
 
-NTTTCP_TCP_CONCURRENCY = [
-    1,
-    2,
-    4,
-    8,
-    16,
-    32,
-    64,
-    128,
-    256,
-    512,
-    1024,
-    2048,
-    4096,
-    6144,
-    8192,
-    10240,
-    20480,
-]
+NTTTCP_TCP_CONCURRENCY = [131072, 262144, 524288]
 NTTTCP_UDP_CONCURRENCY = [
-    1,
-    2,
-    4,
-    8,
-    16,
-    32,
-    64,
-    128,
-    256,
-    512,
-    1024,
+    8192,
 ]
 
 
