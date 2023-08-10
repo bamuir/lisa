@@ -39,6 +39,11 @@ from azure.mgmt.storage.models import (  # type: ignore
     Sku,
     StorageAccountCreateParameters,
 )
+from azure.mgmt.keyvault import KeyVaultManagementClient  # type: ignore
+from azure.mgmt.keyvault.models import ( # type: ignore
+    VaultCreateOrUpdateParameters, 
+    VaultProperties, 
+    Sku)
 from azure.storage.blob import (
     AccountSasPermissions,
     BlobClient,
@@ -119,9 +124,10 @@ _global_sas_vhd_copy_lock = Lock()
 # to prevent it happens.
 global_credential_access_lock = Lock()
 # if user uses lisa for the first time in parallel, there will be a possiblilty
-# to create the same stroage account at the same time.
-# add a lock to prevent it happens.
+# to create the same stroage account or keyvault at the same time.
+# add a lock to prevent it from happening.
 _global_storage_account_check_create_lock = Lock()
+_global_keyvault_check_create_lock = Lock()
 
 
 @dataclass
@@ -889,6 +895,15 @@ def get_storage_client(
         credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
     )
 
+def get_keyvault_client(
+    credential: Any, subscription_id: str, cloud: Cloud
+) -> KeyVaultManagementClient:
+    return KeyVaultManagementClient(
+        credential=credential,
+        subscription_id=subscription_id,
+        base_url=cloud.endpoints.resource_manager,
+        credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
+    )
 
 def get_resource_management_client(
     credential: Any, subscription_id: str, cloud: Cloud
@@ -1077,6 +1092,48 @@ def get_or_create_storage_container(
     if not container_client.exists():
         container_client.create_container()
     return container_client
+
+def check_or_create_keyvault(
+    credential: Any,
+    tenant_id: str,
+    subscription_id: str,
+    cloud: str, 
+    vault_name: str,
+    resource_group_name: str,
+    location: str,
+    log: Logger,
+    sku_name: str = "standard"
+) -> None:
+    """
+    Check if a Key Vault exists in the given location for the subscription.
+    If not, then create one.
+    """
+    
+    kv_client = get_keyvault_client(credential, subscription_id, cloud)
+    with _global_keyvault_check_create_lock:
+        existing_vaults = kv_client.vaults.list_by_subscription()
+        # Check if a vault exists in the specified location, witin the subscription
+        if any(vault for vault in existing_vaults if vault.location == location):
+            log.debug(f"found key vault in location: {location} subscription: {subscription_id}")
+            return
+
+        log.debug(f"creating key vault: {vault_name} in location: {location} subscription: {subscription_id}")
+        parameters = VaultCreateOrUpdateParameters(
+            location=location,
+            properties=VaultProperties(
+                tenant_id=tenant_id,
+                sku=Sku(name=sku_name),
+                access_policies=[],
+                enabled_for_disk_encryption=True # Define access policies if needed
+            )
+        )
+        operation = kv_client.vaults.begin_create_or_update(
+            resource_group_name=resource_group_name,
+            vault_name=vault_name,
+            parameters=parameters,
+        )
+        wait_operation(operation)
+        #operation.result()  # If you just want to wait for the operation to complete
 
 
 def check_or_create_storage_account(
