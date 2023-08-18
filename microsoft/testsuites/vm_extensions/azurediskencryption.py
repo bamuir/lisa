@@ -1,12 +1,18 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import string
 import os
+import random
+import string
+import time
 from datetime import datetime, timezone
 from typing import Any
 
 from assertpy import assert_that
+from azure.mgmt.keyvault import KeyVaultManagementClient  # type: ignore
+from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
+from azure.mgmt.keyvault.models import Sku as KeyVaultSku  # type: ignore
+from azure.mgmt.keyvault.models import VaultCreateOrUpdateParameters, VaultProperties
 
 from lisa import (
     Logger,
@@ -17,8 +23,8 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import (
-    SLES,
     BSD,
+    SLES,
     CBLMariner,
     CentOs,
     Oracle,
@@ -30,19 +36,20 @@ from lisa.operating_system import (
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
-    check_or_create_storage_account,
+    create_keyvault,
     get_node_context,
-    get_or_create_storage_container,
-    get_storage_credential,
+    get_tenant_id
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.util import SkippedException, generate_random_chars
+
+
 @TestSuiteMetadata(
     area="vm_extension",
     category="functional",
-    description="Test for the Azure Disk Encryption (ADE) extension",
+    description="Tests for the Azure Disk Encryption (ADE) extension",
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],
@@ -75,10 +82,41 @@ class AzureDiskEncryption(TestSuite):
         location = node_capability.location
 
         # get user tenant id for KV creation
-        user_tenant_id = os.environ.get("tenant_id")
-        if user_tenant_id is None:
-            raise ValueError("Environment variable 'tenant_id' is not set.")
+        tenant_id = get_tenant_id(platform.credential)
+        if tenant_id is None:
+            raise ValueError("Environment variable 'AZURE_TENANT_ID' is not set.")
         
-        log.debug(f"User tenant ID: {user_tenant_id}")
+         # User's attributes
+        # tenant_id = os.environ["AZURE_TENANT_ID"]
+        # if tenant_id is None:
+        #     raise ValueError("Environment variable 'tenant_id' is not set.")
+        # object_id = os.environ["AZURE_CLIENT_ID"]
+        # if object_id is None:
+        #     raise ValueError("Environment variable 'object_id' is not set.")
 
-        
+        log.debug(f"tenant_id {tenant_id}")
+
+        # vault_properties = VaultProperties(
+        #     tenant_id=tenant_id,
+        #     sku=KeyVaultSku(name="standard"),
+        #     enabled_for_disk_encryption=True,
+        #     access_policies=[
+        #         AccessPolicyEntry(
+        #             tenant_id=tenant_id,
+        #             permissions=Permissions(
+        #                 keys=["all"], secrets=["all"], certificates=["all"]
+        #             ),
+        #         ),
+        #     ],
+        # )
+
+        # # Create Key Vault
+        # vault_name = f"kve-{time.strftime('%y%m%d%H%M%S')}-{random.randint(1, 1000):03}"
+        # keyvault_result = create_keyvault(
+        #     platform=platform,
+        #     resource_group_name=node_context.resource_group_name,
+        #     location=node_context.location,
+        #     vault_name=vault_name,
+        # )
+
+        # log.debug(f"Key vault creation result: {keyvault_result}")

@@ -15,6 +15,10 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 import requests
 from azure.mgmt.compute import ComputeManagementClient  # type: ignore
 from azure.mgmt.compute.models import VirtualMachine  # type: ignore
+from azure.mgmt.keyvault import KeyVaultManagementClient  # type: ignore
+from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
+from azure.mgmt.keyvault.models import Sku as KeyVaultSku  # type: ignore
+from azure.mgmt.keyvault.models import VaultCreateOrUpdateParameters, VaultProperties
 from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements  # type: ignore
 from azure.mgmt.network import NetworkManagementClient  # type: ignore
 from azure.mgmt.network.models import (  # type: ignore
@@ -33,7 +37,7 @@ from azure.mgmt.privatedns.models import (  # type: ignore
     SubResource,
     VirtualNetworkLink,
 )
-from azure.mgmt.resource import ResourceManagementClient  # type: ignore
+from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient  # type: ignore
 from azure.mgmt.storage import StorageManagementClient  # type: ignore
 from azure.mgmt.storage.models import (  # type: ignore
     Sku,
@@ -127,7 +131,7 @@ global_credential_access_lock = Lock()
 # to create the same stroage account or keyvault at the same time.
 # add a lock to prevent it from happening.
 _global_storage_account_check_create_lock = Lock()
-_global_keyvault_check_create_lock = Lock()
+_global_key_vault_check_create_lock = Lock()
 
 
 @dataclass
@@ -895,15 +899,19 @@ def get_storage_client(
         credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
     )
 
-def get_keyvault_client(
-    credential: Any, subscription_id: str, cloud: Cloud
+def get_tenant_id(
+    credential: Any
+) -> str:
+    # Initialize the Subscription client
+    subscription_client = SubscriptionClient(credential)
+    # Get the subscription
+    subscription = next(subscription_client.subscriptions.list())
+    return subscription.tenant_id
+
+def get_key_vault_management_client(
+    platform: "AzurePlatform",
 ) -> KeyVaultManagementClient:
-    return KeyVaultManagementClient(
-        credential=credential,
-        subscription_id=subscription_id,
-        base_url=cloud.endpoints.resource_manager,
-        credential_scopes=[cloud.endpoints.resource_manager + "/.default"],
-    )
+    return KeyVaultManagementClient(platform.credential, platform.subscription_id)
 
 def get_resource_management_client(
     credential: Any, subscription_id: str, cloud: Cloud
@@ -1093,48 +1101,22 @@ def get_or_create_storage_container(
         container_client.create_container()
     return container_client
 
-def check_or_create_keyvault(
-    credential: Any,
-    tenant_id: str,
-    subscription_id: str,
-    cloud: str, 
-    vault_name: str,
+def create_keyvault(
+    platform: "AzurePlatform",
     resource_group_name: str,
     location: str,
-    log: Logger,
-    sku_name: str = "standard"
-) -> None:
-    """
-    Check if a Key Vault exists in the given location for the subscription.
-    If not, then create one.
-    """
-    
-    kv_client = get_keyvault_client(credential, subscription_id, cloud)
-    with _global_keyvault_check_create_lock:
-        existing_vaults = kv_client.vaults.list_by_subscription()
-        # Check if a vault exists in the specified location, witin the subscription
-        if any(vault for vault in existing_vaults if vault.location == location):
-            log.debug(f"found key vault in location: {location} subscription: {subscription_id}")
-            return
-
-        log.debug(f"creating key vault: {vault_name} in location: {location} subscription: {subscription_id}")
+    vault_name: str,
+    vault_properties: VaultProperties
+) -> Any:
+    keyvault_client = get_key_vault_management_client(platform)
+    with _global_key_vault_check_create_lock:
         parameters = VaultCreateOrUpdateParameters(
-            location=location,
-            properties=VaultProperties(
-                tenant_id=tenant_id,
-                sku=Sku(name=sku_name),
-                access_policies=[],
-                enabled_for_disk_encryption=True # Define access policies if needed
-            )
+            location=location, properties=vault_properties
         )
-        operation = kv_client.vaults.begin_create_or_update(
-            resource_group_name=resource_group_name,
-            vault_name=vault_name,
-            parameters=parameters,
+        keyvault_poller = keyvault_client.vaults.begin_create_or_update(
+            resource_group_name, vault_name, parameters
         )
-        wait_operation(operation)
-        #operation.result()  # If you just want to wait for the operation to complete
-
+        return keyvault_poller.result()
 
 def check_or_create_storage_account(
     credential: Any,
